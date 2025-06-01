@@ -1,0 +1,99 @@
+<?php
+
+///////////////////////// Register Post Type  /////////////////////////
+function register_booking_cpt() {
+    $args = array(
+        'label' => 'Bookings',
+        'public' => true,
+        'show_in_menu' => true,
+        'supports' => array('title', 'editor'),
+        'menu_icon' => 'dashicons-calendar-alt',
+    );
+
+    register_post_type('booking', $args);
+}
+add_action('init', 'register_booking_cpt');
+
+///////////////////////// Register Post Type  /////////////////////////
+
+///////////////////////// Handle User Input Value and Send Response  /////////////////////////
+
+add_action( 'wp_ajax_booking_form', 'booking_form_hndl' );
+add_action( 'wp_ajax_nopriv_booking_form', 'booking_form_hndl' );
+function booking_form_hndl() {
+    $b_name = $_POST['b_name'];
+    $b_email = $_POST['b_email'];
+    $b_date = $_POST['b_date'];
+    $b_message = $_POST['b_message'];
+
+    // Gather post data.
+    $my_post = array(
+        'post_title'    => $b_name,
+        'post_content'  => $b_message,
+        'post_status'   => 'publish',
+        'post_type' => 'booking'
+    );
+
+    // Insert the post into the database.
+    $post_id = wp_insert_post($my_post);
+    if ($post_id && !is_wp_error($post_id)) {
+        // মেটা ফিল্ড আপডেট করুন
+        update_post_meta($post_id, 'booking_email', $b_email);
+        update_post_meta($post_id, 'booking_date', $b_date);
+
+        wp_send_json_success([
+            'message' => 'Booking successfully added.',
+            'status'  => 'success',
+            'post_id' => $post_id,
+        ]);
+    }else{
+        $data = array('message' => 'Error');
+        wp_send_json_error($data);
+    }
+
+    wp_die(); // AJAX শেষ করুন
+}
+
+///////////////////////// Handle User Input Value and Send Response  /////////////////////////
+
+
+////////////////////// Show Custom Field On Post Type  //////////////////////
+
+function show_booking_custom_fields() {
+    add_meta_box('booking_custom_fields', 'Booking Info', 'render_booking_fields', 'booking', 'normal', 'default');
+}
+add_action('add_meta_boxes', 'show_booking_custom_fields');
+
+function render_booking_fields($post) {
+    $email = get_post_meta($post->ID, 'booking_email', true);
+    $date = get_post_meta($post->ID, 'booking_date', true);
+
+    echo '<p><strong>Email:</strong> ' . esc_html($email) . '</p>';
+    echo '<p><strong>Date:</strong> ' . esc_html($date) . '</p>';
+}
+
+////////////////////// Show Custom Field On Post Type  //////////////////////
+
+
+jQuery(document).ready(function ($) {
+    $('#custom-booking-form').submit(function (e) {
+        e.preventDefault();
+
+        var formData = $(this).serialize(); // ফর্মের সব ইনপুট ডাটা সিরিয়ালাইজ করবে
+
+        $.ajax({
+            type: 'post',
+            dataType: 'json',
+            url: my_ajax_obj.ajax_url,
+            data: formData + '&action=booking_form', // formData এর সাথে action অ্যাড করা হয়েছে
+            success: function (response) {
+                if (response.success) {
+                    alert(response.data.message);
+                    $('#custom-booking-form')[0].reset(); // ফর্ম রিসেট করুন
+                } else {
+                    alert('Error: ' + response.data.message);
+                }
+            }
+        });
+    });
+});
